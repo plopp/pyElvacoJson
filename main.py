@@ -77,6 +77,6 @@ for pid in allchannels:
             "value": pido["value"]
         }
     }
-    points.append(point);
+    points.append(point)
 
-client.write_points(points)
+client.write_points(points,time_precision='n')
