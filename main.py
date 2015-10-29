@@ -1,7 +1,13 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import requests
 from requests.auth import HTTPBasicAuth
 import json
 import time
+from influxdb import InfluxDBClient
+
+client = InfluxDBClient('localhost', 8086, 'root', 'root', 'vameb')
 
 def sendRPC(**kwargs):
     data = {
@@ -38,10 +44,13 @@ all = sendRPC(method="pdb.browse")
 all = json.loads(all)
 
 allpids = []
-allchannels = []
+allchannels = {}
 for channel in all["result"]["points"]:
     allpids.append(channel["pid"])
-    allchannels.append({channel["pid"]:channel["attr"]})
+    allchannels[channel["pid"]]={
+        "unit":channel["attr"],
+        "desc":channel["desc"]
+    }
 
 elm1 = sendRPC(method="pdb.getvalue",params=allpids)
 elm1dict = json.loads(elm1)
@@ -49,6 +58,25 @@ elm1dict = json.loads(elm1)
 todbdict = {}
 for pid in elm1dict["result"]["points"]:
     todbdict[pid["pid"]]=pid["value"]
+    allchannels[pid["pid"]]["value"] = pid["value"]
+    allchannels[pid["pid"]]["time"] = elm1dict["result"]["timet"]
 
 todbdict["time"]=elm1dict["result"]["timet"]
-print json.dumps(todbdict)
+
+points = []
+for pid in allchannels:
+    pido = allchannels[pid]
+    point = {
+        "measurement": pido["desc"],
+        "tags": {
+            "unit": pido["unit"].encode("utf-8"),
+            "pid": pid
+        },
+        "time": pido["time"]*1000*1000,
+        "fields": {
+            "value": pido["value"]
+        }
+    }
+    points.append(point);
+
+client.write_points(points)
