@@ -5,9 +5,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 import json
 import time
-from influxdb import InfluxDBClient
-
-client = InfluxDBClient('localhost', 8086, 'root', 'root', 'vameb')
+import os
 
 def sendRPC(**kwargs):
     data = {
@@ -23,7 +21,10 @@ def sendRPC(**kwargs):
     }
     
     try:
-        with open('.credentials', 'r') as f:
+        #Used for find fiding the .credentials file when run from CRON.
+        scriptDirectory = os.path.dirname(os.path.realpath(__file__))
+        credentialsFilePath = os.path.join(scriptDirectory, ".credentials")
+        with open(credentialsFilePath, 'r') as f:
             file_data = f.read()
             creds = file_data.split(',')
             url = creds[0]
@@ -72,11 +73,14 @@ for pid in allchannels:
             "unit": pido["unit"].encode("utf-8"),
             "pid": pid
         },
-        "time": pido["time"]*1000*1000,
+        "time": pido["time"],
         "fields": {
             "value": pido["value"]
         }
     }
+    point = ''.join([pido["desc"].encode("utf-8"),",unit=",pido["unit"].encode("utf-8"),",pid=",pid.encode("utf-8")," value=",str(pido["value"])," ",str(pido["time"])])
     points.append(point)
+psend = '\n'.join(points)
 
-client.write_points(points,time_precision='n')
+import requests
+r = requests.post('http://localhost:8086/write?db=vameb&user=root&precision=ms',data=psend)
